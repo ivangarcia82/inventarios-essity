@@ -129,3 +129,59 @@ export async function getMovements(filters?: {
 
   return { success: true as const, data: movements };
 }
+
+interface BatchMovementItem {
+  productId: string;
+  warehouseId: string;
+  quantity: number;
+}
+
+export async function createBatchMovements(items: BatchMovementItem[]) {
+  const session = await auth();
+  if (!session?.user) return { success: false as const, error: "No autorizado" };
+
+  const userId = (session.user as any).id as string;
+
+  if (!items.length) return { success: false as const, error: "El carrito está vacío" };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        const inventoryItem = await tx.inventoryItem.findUnique({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: item.warehouseId } },
+          include: { product: { select: { unit: true, name: true } } },
+        });
+        const currentQty = inventoryItem?.quantity ?? 0;
+        if (currentQty < item.quantity) {
+          throw new Error(
+            `Stock insuficiente para "${inventoryItem?.product?.name ?? item.productId}": hay ${currentQty} ${inventoryItem?.product?.unit ?? "uds"}`
+          );
+        }
+        await tx.inventoryItem.update({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: item.warehouseId } },
+          data: { quantity: { decrement: item.quantity } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            type: "EXIT",
+            productId: item.productId,
+            fromWarehouseId: item.warehouseId,
+            toWarehouseId: null,
+            quantity: item.quantity,
+            reason: "Salida POS",
+            notes: null,
+            createdById: userId,
+          },
+        });
+      }
+    });
+
+    revalidatePath("/inventory");
+    revalidatePath("/movements");
+    revalidatePath("/dashboard");
+    revalidatePath("/pos");
+    return { success: true as const };
+  } catch (e: any) {
+    return { success: false as const, error: e.message ?? "Error al registrar salida" };
+  }
+}

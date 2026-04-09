@@ -12,6 +12,7 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "POS — Salidas", href: "/pos", icon: ShoppingCart },
   { label: "Inventario", href: "/inventory", icon: Package },
   { label: "Movimientos", href: "/movements", icon: ArrowLeftRight },
   { label: "Registrar Movimiento", href: "/movements/new", icon: ShoppingCart },

@@ -1,7 +1,7 @@
 // src/app/(app)/movements/new/page.tsx
 import { auth } from "@/lib/auth";
-import { getProducts } from "@/app/actions/products";
-import { getWarehouses } from "@/app/actions/warehouses";
+import { getProducts, getAllProducts } from "@/app/actions/products";
+import { getWarehouses, getAllWarehouses } from "@/app/actions/warehouses";
 import { MovementForm } from "@/components/pos/movement-form";
 
 export default async function NewMovementPage() {
@@ -9,9 +9,11 @@ export default async function NewMovementPage() {
   const userRole = (session?.user as any)?.role as string;
   const userOrgId = (session?.user as any)?.organizationId as string;
 
+  const isAdmin = userRole === "ADMIN_GI";
+
   const [productsRes, warehousesRes] = await Promise.all([
-    getProducts(userOrgId),
-    getWarehouses(userOrgId),
+    isAdmin ? getAllProducts() : getProducts(userOrgId),
+    isAdmin ? getAllWarehouses() : getWarehouses(userOrgId),
   ]);
 
   return (

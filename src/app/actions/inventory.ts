@@ -60,3 +60,18 @@ export async function getInventorySummary(organizationId?: string) {
     },
   };
 }
+
+export async function getWarehouseInventory(warehouseId: string) {
+  const session = await auth();
+  if (!session?.user) return { success: false as const, error: "No autorizado" };
+
+  const items = await prisma.inventoryItem.findMany({
+    where: { warehouseId, quantity: { gt: 0 } },
+    include: {
+      product: { select: { id: true, name: true, sku: true, unit: true } },
+    },
+    orderBy: { product: { name: "asc" } },
+  });
+
+  return { success: true as const, data: items };
+}
