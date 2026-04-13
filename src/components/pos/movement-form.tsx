@@ -4,7 +4,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createMovement } from "@/app/actions/movements";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Download } from "lucide-react";
+import type { RemisionData } from "@/lib/generate-remision";
 
 type Product = { id: string; name: string; sku: string | null; unit: string };
 type Warehouse = { id: string; name: string; organizationId: string };
@@ -47,11 +48,14 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+  const [receiverName, setReceiverName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [lastRemision, setLastRemision] = useState<RemisionData | null>(null);
 
   const config = typeConfig[type];
+  const isExit = type === "EXIT";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +64,7 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
 
     const qty = parseInt(quantity);
     if (!qty || qty <= 0) { setError("La cantidad debe ser mayor a 0"); setLoading(false); return; }
+    if (isExit && !receiverName.trim()) { setError("Ingresa el nombre de quien recoge la mercancía"); setLoading(false); return; }
 
     const res = await createMovement({
       type,
@@ -69,18 +74,56 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
       toWarehouseId: config.needsTo ? toWarehouseId : undefined,
       reason: reason || undefined,
       notes: notes || undefined,
+      receiverName: isExit ? receiverName.trim() : undefined,
     });
 
     if (!res.success) {
       setError(res.error ?? "Error al registrar");
     } else {
+      const movement = res.data as any;
+      const product = products.find((p) => p.id === productId);
+      const fromWh = warehouses.find((w) => w.id === fromWarehouseId);
+      const toWh = warehouses.find((w) => w.id === toWarehouseId);
+
+      const remision: RemisionData = {
+        folio: movement.id.slice(-8).toUpperCase(),
+        type,
+        createdAt: movement.createdAt,
+        createdByName: movement.createdBy?.name ?? "—",
+        receiverName: isExit ? receiverName.trim() : undefined,
+        reason: reason || undefined,
+        notes: notes || undefined,
+        warehouseName: config.needsFrom ? fromWh?.name : toWh?.name,
+        items: [{
+          productName: product?.name ?? "—",
+          sku: product?.sku,
+          unit: product?.unit ?? "pza",
+          quantity: qty,
+          fromWarehouse: config.needsFrom ? fromWh?.name : null,
+          toWarehouse: config.needsTo ? toWh?.name : null,
+        }],
+      };
+
+      setLastRemision(remision);
       setSuccess(true);
       setQuantity("");
       setReason("");
       setNotes("");
-      setTimeout(() => { setSuccess(false); router.refresh(); }, 2000);
+      setReceiverName("");
+
+      // Auto-download PDF
+      const { generateRemision } = await import("@/lib/generate-remision");
+      generateRemision(remision);
+
+      setTimeout(() => { setSuccess(false); setLastRemision(null); router.refresh(); }, 6000);
     }
     setLoading(false);
+  };
+
+  const handleRedownload = async () => {
+    if (!lastRemision) return;
+    const { generateRemision } = await import("@/lib/generate-remision");
+    generateRemision(lastRemision);
   };
 
   return (
@@ -168,6 +211,20 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
           </div>
         )}
 
+        {/* Receptor (solo para salidas) */}
+        {isExit && (
+          <div>
+            <label className={labelCls}>Nombre de quien recoge *</label>
+            <input
+              value={receiverName}
+              onChange={(e) => setReceiverName(e.target.value)}
+              className={inputCls}
+              placeholder="Nombre completo del receptor"
+              required
+            />
+          </div>
+        )}
+
         {/* Motivo */}
         <div>
           <label className={labelCls}>Motivo</label>
@@ -198,9 +255,21 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
         )}
 
         {success && (
-          <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            Movimiento registrado exitosamente
+          <div className="flex items-center justify-between gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              Movimiento registrado — remisión descargada
+            </span>
+            {lastRemision && (
+              <button
+                type="button"
+                onClick={handleRedownload}
+                className="flex items-center gap-1 text-xs font-medium underline underline-offset-2 hover:text-emerald-800 cursor-pointer"
+              >
+                <Download className="w-3 h-3" />
+                Volver a descargar
+              </button>
+            )}
           </div>
         )}
 

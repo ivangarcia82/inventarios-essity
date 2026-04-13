@@ -1,11 +1,14 @@
 // src/app/(app)/movements/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getMovements } from "@/app/actions/movements";
+import { getAllWarehouses, getWarehouses } from "@/app/actions/warehouses";
+import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, Inbox } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, Inbox, Download, User } from "lucide-react";
+import type { RemisionData } from "@/lib/generate-remision";
 
 type Movement = {
   id: string;
@@ -13,12 +16,15 @@ type Movement = {
   quantity: number;
   reason: string | null;
   notes: string | null;
+  receiverName: string | null;
   createdAt: Date;
   product: { name: string; unit: string; sku: string | null };
   fromWarehouse: { name: string } | null;
   toWarehouse: { name: string } | null;
   createdBy: { name: string };
 };
+
+type Warehouse = { id: string; name: string; organization: { name: string } };
 
 const typeConfig: Record<string, { label: string; icon: React.ElementType; badge: string }> = {
   ENTRY:    { label: "Entrada",       icon: ArrowDown,      badge: "bg-emerald-100 text-emerald-700" },
@@ -27,7 +33,7 @@ const typeConfig: Record<string, { label: string; icon: React.ElementType; badge
   RETURN:   { label: "Devolución",    icon: RotateCcw,      badge: "bg-amber-100 text-amber-700" },
 };
 
-const FILTERS = [
+const TYPE_FILTERS = [
   { value: "",         label: "Todos" },
   { value: "ENTRY",    label: "Entradas" },
   { value: "EXIT",     label: "Salidas" },
@@ -36,26 +42,72 @@ const FILTERS = [
 ];
 
 export default function MovementsPage() {
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role as string | undefined;
+  const userOrgId = (session?.user as any)?.organizationId as string | undefined;
+
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [typeFilter, setTypeFilter] = useState("");
+  const [warehouseFilter, setWarehouseFilter] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = async (type?: string) => {
+  const loadWarehouses = useCallback(async () => {
+    if (!userRole) return;
+    const res = userRole === "ADMIN_GI"
+      ? await getAllWarehouses()
+      : await getWarehouses(userOrgId);
+    if (res.success) setWarehouses(res.data as any);
+  }, [userRole, userOrgId]);
+
+  const load = useCallback(async (type?: string, warehouseId?: string) => {
     setLoading(true);
-    const res = await getMovements(type ? { type: type as any } : undefined);
+    const res = await getMovements({
+      ...(type ? { type: type as any } : {}),
+      ...(warehouseId ? { warehouseId } : {}),
+    });
     if (res.success) setMovements(res.data as any);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { loadWarehouses(); }, [loadWarehouses]);
+  useEffect(() => { load(); }, [load]);
 
   const handleTypeFilter = (type: string) => {
     setTypeFilter(type);
-    load(type || undefined);
+    load(type || undefined, warehouseFilter || undefined);
+  };
+
+  const handleWarehouseFilter = (wid: string) => {
+    setWarehouseFilter(wid);
+    load(typeFilter || undefined, wid || undefined);
+  };
+
+  const handleDownloadRemision = async (m: Movement) => {
+    const remision: RemisionData = {
+      folio: m.id.slice(-8).toUpperCase(),
+      type: m.type,
+      createdAt: m.createdAt,
+      createdByName: m.createdBy.name,
+      receiverName: m.receiverName,
+      reason: m.reason,
+      notes: m.notes,
+      warehouseName: m.fromWarehouse?.name ?? m.toWarehouse?.name,
+      items: [{
+        productName: m.product.name,
+        sku: m.product.sku,
+        unit: m.product.unit,
+        quantity: m.quantity,
+        fromWarehouse: m.fromWarehouse?.name ?? null,
+        toWarehouse: m.toWarehouse?.name ?? null,
+      }],
+    };
+    const { generateRemision } = await import("@/lib/generate-remision");
+    generateRemision(remision);
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="max-w-6xl mx-auto space-y-5">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Movimientos</h1>
@@ -63,20 +115,39 @@ export default function MovementsPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => handleTypeFilter(f.value)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              typeFilter === f.value
-                ? "bg-primary text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-primary/40 hover:text-primary"
-            }`}
+      <div className="flex flex-wrap gap-3 items-center">
+        {/* Filtro tipo */}
+        <div className="flex flex-wrap gap-1.5">
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => handleTypeFilter(f.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                typeFilter === f.value
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-white text-slate-600 border border-slate-200 hover:border-primary/40 hover:text-primary"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtro almacén */}
+        {warehouses.length > 0 && (
+          <select
+            value={warehouseFilter}
+            onChange={(e) => handleWarehouseFilter(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-slate-600 cursor-pointer"
           >
-            {f.label}
-          </button>
-        ))}
+            <option value="">Todos los almacenes</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}{userRole === "ADMIN_GI" ? ` — ${w.organization.name}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Tabla */}
@@ -88,15 +159,16 @@ export default function MovementsPage() {
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Producto</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Origen → Destino</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Cant.</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Motivo</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Motivo / Receptor</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Usuario</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400 text-sm">
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-sm">
                   Cargando movimientos...
                 </td>
               </tr>
@@ -104,6 +176,7 @@ export default function MovementsPage() {
             {!loading && movements.map((m) => {
               const cfg = typeConfig[m.type] ?? { label: m.type, icon: ArrowLeftRight, badge: "bg-slate-100 text-slate-600" };
               const Icon = cfg.icon;
+              const isExit = m.type === "EXIT";
               return (
                 <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="px-4 py-3">
@@ -124,19 +197,37 @@ export default function MovementsPage() {
                   <td className="px-4 py-3 text-right font-semibold text-slate-800 tabular-nums">
                     {m.quantity} <span className="font-normal text-slate-400">{m.product.unit}</span>
                   </td>
-                  <td className="px-4 py-3 text-slate-500 max-w-[150px] truncate text-xs">
-                    {m.reason ?? <span className="text-slate-300">—</span>}
+                  <td className="px-4 py-3 text-xs max-w-[160px]">
+                    {m.reason && <p className="text-slate-500 truncate">{m.reason}</p>}
+                    {isExit && m.receiverName && (
+                      <p className="flex items-center gap-1 text-slate-400 mt-0.5">
+                        <User className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{m.receiverName}</span>
+                      </p>
+                    )}
+                    {!m.reason && (!isExit || !m.receiverName) && (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{m.createdBy.name}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
                     {format(new Date(m.createdAt), "dd MMM yyyy · HH:mm", { locale: es })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => handleDownloadRemision(m)}
+                      title="Descargar remisión"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               );
             })}
             {!loading && movements.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center">
+                <td colSpan={8} className="px-4 py-12 text-center">
                   <Inbox className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-sm text-slate-400">Sin movimientos registrados</p>
                 </td>

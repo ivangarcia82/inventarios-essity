@@ -87,6 +87,7 @@ model StockMovement {
   quantity        Int
   reason          String?
   notes           String?
+  receiverName    String?
   createdById     String
   createdBy       User       @relation(fields: [createdById], references: [id])
   createdAt       DateTime   @default(now())

@@ -15,6 +15,7 @@ interface CreateMovementInput {
   toWarehouseId?: string;
   reason?: string;
   notes?: string;
+  receiverName?: string;
 }
 
 export async function createMovement(input: CreateMovementInput) {
@@ -27,7 +28,6 @@ export async function createMovement(input: CreateMovementInput) {
 
   if (input.quantity <= 0) return { success: false as const, error: "La cantidad debe ser mayor a 0" };
 
-  // Verificar que el producto pertenece a la organización del usuario (o admin puede moverlo)
   const product = await prisma.product.findUnique({ where: { id: input.productId } });
   if (!product) return { success: false as const, error: "Producto no encontrado" };
   if (userRole !== "ADMIN_GI" && product.organizationId !== userOrgId) {
@@ -35,8 +35,7 @@ export async function createMovement(input: CreateMovementInput) {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // Validar stock de origen si aplica
+    const movement = await prisma.$transaction(async (tx) => {
       if (input.fromWarehouseId) {
         const originItem = await tx.inventoryItem.findUnique({
           where: { productId_warehouseId: { productId: input.productId, warehouseId: input.fromWarehouseId } },
@@ -46,7 +45,6 @@ export async function createMovement(input: CreateMovementInput) {
           throw new Error(`Stock insuficiente: hay ${currentQty} ${product.unit} en el almacén de origen`);
         }
 
-        // Restar del origen
         await tx.inventoryItem.upsert({
           where: { productId_warehouseId: { productId: input.productId, warehouseId: input.fromWarehouseId } },
           update: { quantity: { decrement: input.quantity } },
@@ -54,7 +52,6 @@ export async function createMovement(input: CreateMovementInput) {
         });
       }
 
-      // Sumar al destino si aplica
       if (input.toWarehouseId) {
         await tx.inventoryItem.upsert({
           where: { productId_warehouseId: { productId: input.productId, warehouseId: input.toWarehouseId } },
@@ -63,8 +60,7 @@ export async function createMovement(input: CreateMovementInput) {
         });
       }
 
-      // Registrar movimiento
-      await tx.stockMovement.create({
+      const m = await tx.stockMovement.create({
         data: {
           type: input.type,
           productId: input.productId,
@@ -73,15 +69,23 @@ export async function createMovement(input: CreateMovementInput) {
           quantity: input.quantity,
           reason: input.reason ?? null,
           notes: input.notes ?? null,
+          receiverName: input.receiverName ?? null,
           createdById: userId,
         },
+        include: {
+          product: { select: { name: true, unit: true, sku: true } },
+          fromWarehouse: { select: { name: true } },
+          toWarehouse: { select: { name: true } },
+          createdBy: { select: { name: true } },
+        },
       });
+      return m;
     });
 
     revalidatePath("/inventory");
     revalidatePath("/movements");
     revalidatePath("/dashboard");
-    return { success: true as const };
+    return { success: true as const, data: movement };
   } catch (e: any) {
     return { success: false as const, error: e.message ?? "Error al registrar movimiento" };
   }
@@ -102,15 +106,24 @@ export async function getMovements(filters?: {
   const userOrgId = (session.user as any).organizationId as string;
   const userId = (session.user as any).id as string;
 
-  const orgId = filters?.organizationId ?? userOrgId;
-
   // USER_ESSITY solo ve sus propios movimientos
   const createdByFilter = userRole !== "ADMIN_GI" ? { createdById: userId } : {};
+
+  // ADMIN_GI ve todos salvo que se filtre por org; USER_ESSITY siempre ve su org
+  const orgFilter: any =
+    userRole === "ADMIN_GI" && !filters?.organizationId
+      ? {}
+      : { product: { organizationId: filters?.organizationId ?? userOrgId } };
+
+  const warehouseFilter: any = filters?.warehouseId
+    ? { OR: [{ fromWarehouseId: filters.warehouseId }, { toWarehouseId: filters.warehouseId }] }
+    : {};
 
   const movements = await prisma.stockMovement.findMany({
     where: {
       ...createdByFilter,
-      product: { organizationId: orgId },
+      ...orgFilter,
+      ...warehouseFilter,
       ...(filters?.type ? { type: filters.type } : {}),
       ...(filters?.productId ? { productId: filters.productId } : {}),
       ...(filters?.from || filters?.to
@@ -136,7 +149,7 @@ interface BatchMovementItem {
   quantity: number;
 }
 
-export async function createBatchMovements(items: BatchMovementItem[]) {
+export async function createBatchMovements(items: BatchMovementItem[], receiverName?: string) {
   const session = await auth();
   if (!session?.user) return { success: false as const, error: "No autorizado" };
 
@@ -145,6 +158,8 @@ export async function createBatchMovements(items: BatchMovementItem[]) {
   if (!items.length) return { success: false as const, error: "El carrito está vacío" };
 
   try {
+    const movements: any[] = [];
+
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
         const inventoryItem = await tx.inventoryItem.findUnique({
@@ -161,7 +176,7 @@ export async function createBatchMovements(items: BatchMovementItem[]) {
           where: { productId_warehouseId: { productId: item.productId, warehouseId: item.warehouseId } },
           data: { quantity: { decrement: item.quantity } },
         });
-        await tx.stockMovement.create({
+        const m = await tx.stockMovement.create({
           data: {
             type: "EXIT",
             productId: item.productId,
@@ -170,9 +185,17 @@ export async function createBatchMovements(items: BatchMovementItem[]) {
             quantity: item.quantity,
             reason: "Salida POS",
             notes: null,
+            receiverName: receiverName ?? null,
             createdById: userId,
           },
+          include: {
+            product: { select: { name: true, unit: true, sku: true } },
+            fromWarehouse: { select: { name: true } },
+            toWarehouse: { select: { name: true } },
+            createdBy: { select: { name: true } },
+          },
         });
+        movements.push(m);
       }
     });
 
@@ -180,7 +203,7 @@ export async function createBatchMovements(items: BatchMovementItem[]) {
     revalidatePath("/movements");
     revalidatePath("/dashboard");
     revalidatePath("/pos");
-    return { success: true as const };
+    return { success: true as const, data: movements };
   } catch (e: any) {
     return { success: false as const, error: e.message ?? "Error al registrar salida" };
   }

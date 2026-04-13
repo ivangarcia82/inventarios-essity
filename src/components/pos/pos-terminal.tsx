@@ -4,7 +4,8 @@
 import { useState } from "react";
 import { getWarehouseInventory } from "@/app/actions/inventory";
 import { createBatchMovements } from "@/app/actions/movements";
-import { ShoppingCart, X, Plus, Minus, PackageSearch, CheckCircle2, Loader2 } from "lucide-react";
+import { ShoppingCart, X, Plus, Minus, PackageSearch, CheckCircle2, Loader2, Download, User } from "lucide-react";
+import type { RemisionData } from "@/lib/generate-remision";
 
 type Warehouse = { id: string; name: string; organization: { name: string } };
 type StockItem = {
@@ -19,6 +20,7 @@ type CartItem = {
   unit: string;
   qty: number;
   maxQty: number;
+  sku?: string | null;
 };
 
 interface Props {
@@ -30,10 +32,12 @@ export function PosTerminal({ warehouses }: Props) {
   const [stock, setStock] = useState<StockItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
+  const [receiverName, setReceiverName] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [lastRemision, setLastRemision] = useState<RemisionData | null>(null);
 
   const loadWarehouse = async (id: string) => {
     setWarehouseId(id);
@@ -69,6 +73,7 @@ export function PosTerminal({ warehouses }: Props) {
         warehouseId,
         name: item.product.name,
         unit: item.product.unit,
+        sku: item.product.sku,
         qty: 1,
         maxQty: item.quantity,
       }]);
@@ -89,22 +94,67 @@ export function PosTerminal({ warehouses }: Props) {
 
   const totalUnits = cart.reduce((sum, c) => sum + c.qty, 0);
 
+  const currentWarehouse = warehouses.find((w) => w.id === warehouseId);
+
   const handleSubmit = async () => {
     if (!cart.length) return;
+    if (!receiverName.trim()) {
+      setError("Ingresa el nombre de quien recoge la mercancía");
+      return;
+    }
     setSubmitting(true);
     setError("");
+
     const res = await createBatchMovements(
-      cart.map((c) => ({ productId: c.productId, warehouseId: c.warehouseId, quantity: c.qty }))
+      cart.map((c) => ({ productId: c.productId, warehouseId: c.warehouseId, quantity: c.qty })),
+      receiverName.trim()
     );
+
     if (!res.success) {
       setError(res.error ?? "Error al registrar");
     } else {
+      const movements = res.data as any[];
+      const firstMovement = movements[0];
+      const createdAt = firstMovement?.createdAt ?? new Date();
+      const folio = firstMovement?.id?.slice(-8).toUpperCase() ?? "—";
+
+      const remision: RemisionData = {
+        folio,
+        type: "EXIT",
+        createdAt,
+        createdByName: firstMovement?.createdBy?.name ?? "—",
+        receiverName: receiverName.trim(),
+        reason: "Salida POS",
+        warehouseName: currentWarehouse?.name,
+        items: cart.map((c, i) => ({
+          productName: c.name,
+          sku: c.sku,
+          unit: c.unit,
+          quantity: c.qty,
+          fromWarehouse: currentWarehouse?.name ?? null,
+          toWarehouse: null,
+        })),
+      };
+
+      setLastRemision(remision);
       setSuccess(true);
       setCart([]);
+      setReceiverName("");
+
+      // Auto-download PDF
+      const { generateRemision } = await import("@/lib/generate-remision");
+      generateRemision(remision);
+
       await loadWarehouse(warehouseId);
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => { setSuccess(false); setLastRemision(null); }, 8000);
     }
     setSubmitting(false);
+  };
+
+  const handleRedownload = async () => {
+    if (!lastRemision) return;
+    const { generateRemision } = await import("@/lib/generate-remision");
+    generateRemision(lastRemision);
   };
 
   const cartQty = (productId: string) => cart.find((c) => c.productId === productId)?.qty ?? 0;
@@ -256,6 +306,20 @@ export function PosTerminal({ warehouses }: Props) {
             </div>
           )}
 
+          {/* Receptor */}
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1.5">
+              <User className="w-3 h-3" />
+              Nombre del receptor *
+            </label>
+            <input
+              value={receiverName}
+              onChange={(e) => setReceiverName(e.target.value)}
+              placeholder="¿Quién recoge?"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder-slate-400"
+            />
+          </div>
+
           {error && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">
               {error}
@@ -263,9 +327,20 @@ export function PosTerminal({ warehouses }: Props) {
           )}
 
           {success && (
-            <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              Salida registrada exitosamente
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                Salida registrada — remisión descargada
+              </div>
+              {lastRemision && (
+                <button
+                  onClick={handleRedownload}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-slate-600 hover:text-primary transition-colors cursor-pointer"
+                >
+                  <Download className="w-3 h-3" />
+                  Volver a descargar remisión
+                </button>
+              )}
             </div>
           )}
 
