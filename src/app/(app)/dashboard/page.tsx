@@ -16,12 +16,16 @@ const movementTypeConfig: Record<string, { label: string; color: string }> = {
 
 export default async function DashboardPage() {
   const session = await auth();
+  const userRole = (session?.user as any)?.role as string;
   const userOrgId = (session?.user as any)?.organizationId as string;
   const userName = session?.user?.name ?? "Usuario";
   const firstName = userName.split(" ")[0];
 
+  // ADMIN_GI ve el resumen global; USER_ESSITY solo su org
+  const summaryOrgId = userRole === "ADMIN_GI" ? undefined : userOrgId;
+
   const [summaryRes, movementsRes] = await Promise.all([
-    getInventorySummary(userOrgId),
+    getInventorySummary(summaryOrgId),
     getMovements(),
   ]);
 

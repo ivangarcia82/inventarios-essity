@@ -34,20 +34,26 @@ export async function getInventorySummary(organizationId?: string) {
 
   const userRole = (session.user as any).role;
   const userOrgId = (session.user as any).organizationId;
-  const targetOrgId = organizationId ?? userOrgId;
 
-  if (userRole !== "ADMIN_GI" && targetOrgId !== userOrgId) {
+  // ADMIN_GI sin orgId explícito → visión global de todas las orgs
+  const isGlobalAdmin = userRole === "ADMIN_GI" && !organizationId;
+  const targetOrgId = isGlobalAdmin ? undefined : (organizationId ?? userOrgId);
+
+  if (!isGlobalAdmin && userRole !== "ADMIN_GI" && targetOrgId !== userOrgId) {
     return { success: false as const, error: "No autorizado" };
   }
 
+  const orgFilter = targetOrgId ? { organizationId: targetOrgId } : {};
+  const productOrgFilter = targetOrgId ? { product: { organizationId: targetOrgId } } : {};
+
   const [totalProducts, totalStock, lowStockCount] = await Promise.all([
-    prisma.product.count({ where: { organizationId: targetOrgId } }),
+    prisma.product.count({ where: orgFilter }),
     prisma.inventoryItem.aggregate({
-      where: { product: { organizationId: targetOrgId } },
+      where: productOrgFilter,
       _sum: { quantity: true },
     }),
     prisma.inventoryItem.count({
-      where: { product: { organizationId: targetOrgId }, quantity: { lte: 5 } },
+      where: { ...productOrgFilter, quantity: { lte: 5 } },
     }),
   ]);
 
