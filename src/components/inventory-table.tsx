@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { getInventory } from "@/app/actions/inventory";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Search, Inbox } from "lucide-react";
 
 type InventoryItem = {
   id: string;
@@ -39,47 +39,73 @@ export function InventoryTable({ initialItems, orgs, userRole, defaultOrgId }: P
   );
 
   return (
-    <div>
-      <div className="flex gap-3 mb-4">
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Buscar producto o almacén..." />
+    <div className="space-y-4">
+      {/* Search + filter row */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder-slate-400"
+            placeholder="Buscar producto o almacén..."
+          />
+        </div>
         {userRole === "ADMIN_GI" && (
-          <select value={selectedOrg} onChange={(e) => handleOrgChange(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            {orgs.map((o: Org) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          <select
+            value={selectedOrg}
+            onChange={(e) => handleOrgChange(e.target.value)}
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-slate-700 cursor-pointer"
+          >
+            {orgs.map((o: Org) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
           </select>
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Producto</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">SKU</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Almacén</th>
-              <th className="text-right px-4 py-3 font-medium text-slate-600">Stock</th>
+          <thead>
+            <tr className="border-b border-slate-200">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Producto</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">SKU</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Almacén</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Stock</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map((item) => (
-              <tr key={item.id} className="hover:bg-slate-50">
+              <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                 <td className="px-4 py-3 font-medium text-slate-800">{item.product.name}</td>
-                <td className="px-4 py-3 text-slate-500">{item.product.sku ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-400 font-mono text-xs">
+                  {item.product.sku ?? <span className="text-slate-300">—</span>}
+                </td>
                 <td className="px-4 py-3 text-slate-500">{item.warehouse.name}</td>
                 <td className="px-4 py-3 text-right">
-                  <span className={`inline-flex items-center gap-1 font-semibold ${item.quantity <= 5 ? "text-red-600" : "text-slate-800"}`}>
-                    {item.quantity <= 5 && <AlertTriangle className="w-3.5 h-3.5" />}
-                    {item.quantity} {item.product.unit}
-                  </span>
+                  {item.quantity <= 5 ? (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 text-red-600 text-xs font-semibold">
+                      <AlertTriangle className="w-3 h-3" />
+                      {item.quantity} {item.product.unit}
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-slate-800 tabular-nums">
+                      {item.quantity}{" "}
+                      <span className="font-normal text-slate-400 text-xs">{item.product.unit}</span>
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                {items.length === 0 ? "Sin inventario registrado" : "Sin resultados para la búsqueda"}
-              </td></tr>
+              <tr>
+                <td colSpan={4} className="px-4 py-12 text-center">
+                  <Inbox className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">
+                    {items.length === 0 ? "Sin inventario registrado" : "Sin resultados para la búsqueda"}
+                  </p>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

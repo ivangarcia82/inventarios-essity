@@ -13,8 +13,11 @@ export default async function InventoryPage() {
   const inventoryRes = await getInventory(userOrgId);
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">Inventario</h1>
+    <div className="max-w-5xl mx-auto space-y-5">
+      <div>
+        <h1 className="text-xl font-semibold text-slate-900">Inventario</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Stock actual por producto y almacén</p>
+      </div>
       <InventoryTable
         initialItems={inventoryRes.success ? (inventoryRes.data as any) : []}
         orgs={orgsRes.success ? (orgsRes as any).data : []}

@@ -15,8 +15,8 @@ export default async function PosPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-slate-800">Punto de Venta — Salidas</h1>
-        <p className="text-slate-500 text-sm mt-1">Selecciona un almacén y agrega productos para registrar salidas rápidas.</p>
+        <h1 className="text-xl font-semibold text-slate-900">POS — Salidas</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Selecciona productos y registra salidas de forma rápida.</p>
       </div>
       <PosTerminal
         warehouses={warehousesRes.success ? (warehousesRes.data as any) : []}

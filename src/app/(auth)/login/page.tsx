@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Package } from "lucide-react";
+import { Package, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,7 +19,7 @@ export default function LoginPage() {
     setLoading(true);
     const result = await signIn("credentials", { email, password, redirect: false });
     if (result?.error) {
-      setError("Credenciales inválidas.");
+      setError("Correo o contraseña incorrectos.");
       setLoading(false);
     } else {
       router.push("/dashboard");
@@ -28,53 +28,72 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="w-full max-w-md">
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#050A30] via-[#10145C] to-[#050A30] relative overflow-hidden">
+      {/* Subtle glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-sm px-4">
+        {/* Card */}
+        <div className="bg-white/5 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-2xl p-8">
+          {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-4">
-              <Package className="w-8 h-8 text-white" />
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary shadow-lg shadow-primary/30 mb-5">
+              <Package className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">Inventario Promocionales</h1>
-            <p className="text-slate-400 mt-1 text-sm">Essity · Generando Ideas</p>
+            <h1 className="text-xl font-semibold text-white leading-tight">
+              Inventario Promocionales
+            </h1>
+            <p className="text-sm text-slate-400 mt-1">Essity · Generando Ideas</p>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-5">
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label htmlFor="email" className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
                 Correo electrónico
               </label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="email"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white/8 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm transition-all"
                 placeholder="tu@empresa.com"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label htmlFor="password" className="block text-xs font-medium text-slate-300 mb-1.5 uppercase tracking-wide">
                 Contraseña
               </label>
               <input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="current-password"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white/8 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm transition-all"
                 placeholder="••••••••"
               />
             </div>
+
             {error && (
-              <p className="text-red-300 text-sm text-center bg-red-500/20 border border-red-500/30 rounded-xl p-3">
+              <div className="flex items-center gap-2 text-red-300 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3.5 py-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
                 {error}
-              </p>
+              </div>
             )}
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold hover:opacity-90 transition disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-60 cursor-pointer mt-2 shadow-lg shadow-primary/20"
             >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? "Ingresando..." : "Ingresar"}
             </button>
           </form>

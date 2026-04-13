@@ -18,8 +18,8 @@ export default async function NewMovementPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-2">Registrar Movimiento</h1>
-      <p className="text-slate-500 text-sm mb-6">Registra entradas, salidas, transferencias o devoluciones de inventario.</p>
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">Registrar Movimiento</h1>
+      <p className="text-sm text-slate-500 mb-6">Registra entradas, salidas, transferencias o devoluciones.</p>
       <MovementForm
         products={productsRes.success ? (productsRes.data as any) : []}
         warehouses={warehousesRes.success ? (warehousesRes.data as any) : []}

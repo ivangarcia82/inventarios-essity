@@ -22,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           userRole={userRole}
           orgName={org?.name ?? ""}
         />
-        <main className="flex-1 overflow-y-auto bg-slate-50 px-8 py-6">
+        <main className="flex-1 overflow-y-auto bg-slate-100 px-8 py-8">
           {children}
         </main>
       </div>
