@@ -16,6 +16,7 @@ interface CreateMovementInput {
   reason?: string;
   notes?: string;
   receiverName?: string;
+  trackingNumber?: string;
 }
 
 export async function createMovement(input: CreateMovementInput) {
@@ -60,6 +61,7 @@ export async function createMovement(input: CreateMovementInput) {
         });
       }
 
+      const tracking = input.trackingNumber?.trim();
       const m = await tx.stockMovement.create({
         data: {
           type: input.type,
@@ -70,6 +72,7 @@ export async function createMovement(input: CreateMovementInput) {
           reason: input.reason ?? null,
           notes: input.notes ?? null,
           receiverName: input.receiverName ?? null,
+          trackingNumber: tracking && tracking.length > 0 ? tracking : null,
           createdById: userId,
         },
         include: {
