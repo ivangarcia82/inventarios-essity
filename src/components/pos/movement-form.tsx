@@ -49,6 +49,8 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [receiverName, setReceiverName] = useState("");
+  const [isForeign, setIsForeign] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -66,6 +68,13 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
     if (!qty || qty <= 0) { setError("La cantidad debe ser mayor a 0"); setLoading(false); return; }
     if (isExit && !receiverName.trim()) { setError("Ingresa el nombre de quien recoge la mercancía"); setLoading(false); return; }
 
+    const trackingTrimmed = trackingNumber.trim();
+    if (isForeign && !trackingTrimmed) {
+      setError("Ingresa el número de guía del envío foráneo");
+      setLoading(false);
+      return;
+    }
+
     const res = await createMovement({
       type,
       productId,
@@ -75,6 +84,7 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
       reason: reason || undefined,
       notes: notes || undefined,
       receiverName: isExit ? receiverName.trim() : undefined,
+      trackingNumber: isForeign ? trackingTrimmed : undefined,
     });
 
     if (!res.success) {
@@ -93,6 +103,7 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
         receiverName: isExit ? receiverName.trim() : undefined,
         reason: reason || undefined,
         notes: notes || undefined,
+        trackingNumber: isForeign ? trackingTrimmed : undefined,
         warehouseName: config.needsFrom ? fromWh?.name : toWh?.name,
         items: [{
           productName: product?.name ?? "—",
@@ -110,6 +121,8 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
       setReason("");
       setNotes("");
       setReceiverName("");
+      setIsForeign(false);
+      setTrackingNumber("");
 
       // Auto-download PDF
       const { generateRemision } = await import("@/lib/generate-remision");
@@ -246,6 +259,43 @@ export function MovementForm({ products, warehouses, userRole }: Props) {
             className={inputCls + " resize-none"}
             placeholder="Observaciones opcionales..."
           />
+        </div>
+
+        {/* Envío foráneo */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setIsForeign((v) => !v)}
+            className="flex items-center gap-3 group cursor-pointer"
+          >
+            <span
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                isForeign ? "bg-primary" : "bg-slate-200"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  isForeign ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </span>
+            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
+              Envío foráneo
+            </span>
+          </button>
+
+          {isForeign && (
+            <div className="mt-3">
+              <label className={labelCls}>Número de guía *</label>
+              <input
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                className={inputCls}
+                placeholder="Ej. 1234567890"
+                required
+              />
+            </div>
+          )}
         </div>
 
         {error && (
