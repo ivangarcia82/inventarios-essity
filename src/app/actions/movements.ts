@@ -152,7 +152,11 @@ interface BatchMovementItem {
   quantity: number;
 }
 
-export async function createBatchMovements(items: BatchMovementItem[], receiverName?: string) {
+export async function createBatchMovements(
+  items: BatchMovementItem[],
+  receiverName?: string,
+  trackingNumber?: string,
+) {
   const session = await auth();
   if (!session?.user) return { success: false as const, error: "No autorizado" };
 
@@ -164,6 +168,9 @@ export async function createBatchMovements(items: BatchMovementItem[], receiverN
     const movements: any[] = [];
 
     await prisma.$transaction(async (tx) => {
+      const tracking = trackingNumber?.trim();
+      const trackingValue = tracking && tracking.length > 0 ? tracking : null;
+
       for (const item of items) {
         const inventoryItem = await tx.inventoryItem.findUnique({
           where: { productId_warehouseId: { productId: item.productId, warehouseId: item.warehouseId } },
@@ -189,6 +196,7 @@ export async function createBatchMovements(items: BatchMovementItem[], receiverN
             reason: "Salida POS",
             notes: null,
             receiverName: receiverName ?? null,
+            trackingNumber: trackingValue,
             createdById: userId,
           },
           include: {
