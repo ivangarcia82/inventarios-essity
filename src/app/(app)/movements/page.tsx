@@ -17,6 +17,7 @@ type Movement = {
   reason: string | null;
   notes: string | null;
   receiverName: string | null;
+  trackingNumber: string | null;
   createdAt: Date;
   product: { name: string; unit: string; sku: string | null };
   fromWarehouse: { name: string } | null;
@@ -92,6 +93,7 @@ export default function MovementsPage() {
       receiverName: m.receiverName,
       reason: m.reason,
       notes: m.notes,
+      trackingNumber: m.trackingNumber,
       warehouseName: m.fromWarehouse?.name ?? m.toWarehouse?.name,
       items: [{
         productName: m.product.name,
