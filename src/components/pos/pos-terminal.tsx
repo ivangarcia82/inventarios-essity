@@ -33,6 +33,8 @@ export function PosTerminal({ warehouses }: Props) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
   const [receiverName, setReceiverName] = useState("");
+  const [isForeign, setIsForeign] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -102,12 +104,18 @@ export function PosTerminal({ warehouses }: Props) {
       setError("Ingresa el nombre de quien recoge la mercancía");
       return;
     }
+    const trackingTrimmed = trackingNumber.trim();
+    if (isForeign && !trackingTrimmed) {
+      setError("Ingresa el número de guía del envío foráneo");
+      return;
+    }
     setSubmitting(true);
     setError("");
 
     const res = await createBatchMovements(
       cart.map((c) => ({ productId: c.productId, warehouseId: c.warehouseId, quantity: c.qty })),
-      receiverName.trim()
+      receiverName.trim(),
+      isForeign ? trackingTrimmed : undefined,
     );
 
     if (!res.success) {
@@ -125,6 +133,7 @@ export function PosTerminal({ warehouses }: Props) {
         createdByName: firstMovement?.createdBy?.name ?? "—",
         receiverName: receiverName.trim(),
         reason: "Salida POS",
+        trackingNumber: isForeign ? trackingTrimmed : undefined,
         warehouseName: currentWarehouse?.name,
         items: cart.map((c, i) => ({
           productName: c.name,
@@ -140,6 +149,8 @@ export function PosTerminal({ warehouses }: Props) {
       setSuccess(true);
       setCart([]);
       setReceiverName("");
+      setIsForeign(false);
+      setTrackingNumber("");
 
       // Auto-download PDF
       const { generateRemision } = await import("@/lib/generate-remision");
@@ -318,6 +329,39 @@ export function PosTerminal({ warehouses }: Props) {
               placeholder="¿Quién recoge?"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder-slate-400"
             />
+          </div>
+
+          {/* Envío foráneo */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setIsForeign((v) => !v)}
+              className="flex items-center gap-2 group cursor-pointer"
+            >
+              <span
+                className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+                  isForeign ? "bg-primary" : "bg-slate-200"
+                }`}
+              >
+                <span
+                  className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
+                    isForeign ? "translate-x-3.5" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
+              <span className="text-xs font-medium text-slate-600 group-hover:text-slate-800">
+                Envío foráneo
+              </span>
+            </button>
+
+            {isForeign && (
+              <input
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                placeholder="Número de guía"
+                className="mt-2 w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder-slate-400"
+              />
+            )}
           </div>
 
           {error && (
