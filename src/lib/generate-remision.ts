@@ -29,6 +29,7 @@ export interface RemisionData {
   reason?: string | null;
   notes?: string | null;
   receiverName?: string | null;
+  trackingNumber?: string | null;
   createdByName: string;
   warehouseName?: string | null;
 }
@@ -101,6 +102,7 @@ export function generateRemision(data: RemisionData): void {
   if (data.reason) infoRows.push({ label: "Motivo", value: data.reason });
   if (isExit && data.receiverName) infoRows.push({ label: "Recibe", value: data.receiverName });
   if (data.notes) infoRows.push({ label: "Notas", value: data.notes });
+  if (data.trackingNumber) infoRows.push({ label: "Guía", value: data.trackingNumber });
 
   const halfLen = Math.ceil(infoRows.length / 2);
   const leftRows = infoRows.slice(0, halfLen);
