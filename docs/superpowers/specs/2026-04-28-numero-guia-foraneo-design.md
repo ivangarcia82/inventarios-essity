@@ -77,7 +77,7 @@ Render: bloque nuevo entre el campo "Notas" (línea 240-249) y el bloque de erro
 └──────────────────────────────────────────┘
 ```
 
-- Toggle: checkbox o switch siguiendo el lenguaje visual existente (paleta indigo, bordes `slate-200`, transiciones suaves).
+- Toggle: switch tipo "pill" (botón con fondo `bg-slate-200` apagado / `bg-primary` encendido y un círculo blanco que se desliza), siguiendo el lenguaje visual existente (paleta indigo, bordes `slate-200`, transiciones suaves). Es input no-nativo construido con `<button type="button">`.
 - Input "Número de guía": usa `inputCls`/`labelCls` ya definidos. Aparece solo si `isForeign === true`.
 
 Validación en `handleSubmit`:
