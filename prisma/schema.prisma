@@ -89,6 +89,7 @@ model StockMovement {
   reason          String?
   notes           String?
   receiverName    String?
+  trackingNumber  String?
   createdById     String
   createdBy       User       @relation(fields: [createdById], references: [id])
   createdAt       DateTime   @default(now())
